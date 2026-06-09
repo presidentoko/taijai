@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import QRCode from 'react-qr-code';
 import { api } from '../api';
 import { useAuth } from '../hooks/useAuth';
 
@@ -38,9 +39,6 @@ export default function BuyCredits() {
     }
   }
 
-  const qrImageUrl = qrData
-    ? `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrData.payload)}&size=240x240&margin=10`
-    : null;
 
   const telegramText = `[ทายใจ] ชื่อ: ${user?.displayName}\nID: ${txId}\nจ่าย ${selected.thb} บาท (${selected.credits} เครดิต)\nส่งสลิปมาด้วยนะครับ`;
 
@@ -75,8 +73,10 @@ export default function BuyCredits() {
             <p className="text-sm text-gray-500 mb-1">สแกน PromptPay</p>
             <p className="text-2xl font-bold text-gray-800 mb-4">฿{selected.thb} → {selected.credits} เครดิต</p>
 
-            {qrImageUrl && (
-              <img src={qrImageUrl} alt="PromptPay QR" className="w-60 h-60 mx-auto rounded-xl mb-4 border border-gray-100" />
+            {qrData?.payload && (
+              <div className="flex items-center justify-center p-4 bg-white rounded-2xl border border-gray-100 mb-4 mx-auto w-fit">
+                <QRCode value={qrData.payload} size={200} />
+              </div>
             )}
 
             <p className="text-xs text-gray-400 mb-6">

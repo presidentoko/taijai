@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import PredictionCard from '../components/PredictionCard';
 import LineLoginButton from '../components/LineLoginButton';
 import SuggestModal from '../components/SuggestModal';
+import SkeletonCard from '../components/SkeletonCard';
 
 const CATEGORIES = [
   { key: '', label: 'ทั้งหมด' },
@@ -116,7 +117,7 @@ export default function Home() {
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
         {loading ? (
-          <div className="text-center py-16 text-gray-400">กำลังโหลด...</div>
+          [1,2,3].map(i => <SkeletonCard key={i} />)
         ) : (
           <>
             {/* Closing soon */}

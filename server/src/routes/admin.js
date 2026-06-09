@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
+const { notifyResolve } = require('../services/telegram');
 
 router.use((req, res, next) => {
   if (req.headers['x-admin-secret'] !== process.env.ADMIN_SECRET) {
@@ -111,6 +112,14 @@ router.post('/predictions/:id/resolve', async (req, res) => {
     `, [req.params.id, wrongOption]);
 
     await client.query('COMMIT');
+
+    const { rows: pred } = await pool.query(
+      'SELECT question, options FROM predictions WHERE id = $1', [req.params.id]
+    );
+    if (pred[0]) {
+      notifyResolve({ question: pred[0].question, correctOption: pred[0].options[correctOption] }).catch(() => {});
+    }
+
     res.json({ success: true });
   } catch (e) {
     await client.query('ROLLBACK');

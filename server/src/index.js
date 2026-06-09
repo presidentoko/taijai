@@ -22,6 +22,7 @@ app.use('/leaderboard', require('./routes/leaderboard'));
 app.use('/users', require('./routes/users'));
 app.use('/payments', require('./routes/payments'));
 app.use('/suggestions', require('./routes/suggestions'));
+app.use('/telegram', require('./routes/telegram'));
 app.use('/admin', require('./routes/admin'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

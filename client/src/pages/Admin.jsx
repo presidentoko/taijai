@@ -21,6 +21,8 @@ export default function Admin() {
   const [suggestions, setSuggestions] = useState([]);
   const [approveForm, setApproveForm] = useState(null);
   const [form, setForm] = useState({ question: '', option0: '', option1: '', deadline: '', category: 'general' });
+  const [weekly, setWeekly] = useState(null);
+  const [prizeForm, setPrizeForm] = useState({ prize1st: '', prize2nd: '', prize3rd: '' });
   const [msg, setMsg] = useState('');
   const [creditModal, setCreditModal] = useState(null); // { userId, displayName, txId, credits }
 
@@ -32,16 +34,25 @@ export default function Admin() {
   useEffect(() => { if (authed) loadAll(); }, [authed]);
 
   async function loadAll() {
-    const [s, p, u, sg] = await Promise.all([
+    const [s, p, u, sg, w] = await Promise.all([
       adminFetch('/admin/stats'),
       adminFetch('/admin/predictions'),
       adminFetch('/admin/users'),
       adminFetch('/admin/suggestions'),
+      adminFetch('/admin/weekly'),
     ]);
     setStats(s);
     setPredictions(Array.isArray(p) ? p : []);
     setUsers(Array.isArray(u) ? u : []);
     setSuggestions(Array.isArray(sg) ? sg : []);
+    if (w && !w.error) {
+      setWeekly(w);
+      setPrizeForm({
+        prize1st: w.config?.prize_1st || '',
+        prize2nd: w.config?.prize_2nd || '',
+        prize3rd: w.config?.prize_3rd || '',
+      });
+    }
   }
 
   async function addPrediction(e) {
@@ -116,7 +127,7 @@ export default function Admin() {
           <a href="/" className="text-sm text-gray-500 hover:text-gray-800">← หน้าหลัก</a>
         </div>
         <div className="max-w-2xl mx-auto px-4 pb-2 flex gap-3">
-          {['predictions', 'users', 'suggestions'].map(t => (
+          {['predictions', 'users', 'suggestions', 'weekly'].map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -124,7 +135,10 @@ export default function Admin() {
                 tab === t ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              {t === 'predictions' ? '📋 คำทาย' : t === 'users' ? '👥 ผู้ใช้' : `💡 ข้อเสนอ${suggestions.length ? ` (${suggestions.length})` : ''}`}
+              {t === 'predictions' ? '📋 คำทาย'
+                : t === 'users' ? '👥 ผู้ใช้'
+                : t === 'weekly' ? '🏆 รางวัล'
+                : `💡 ข้อเสนอ${suggestions.length ? ` (${suggestions.length})` : ''}`}
             </button>
           ))}
         </div>
@@ -304,6 +318,94 @@ export default function Admin() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Weekly prizes tab */}
+        {tab === 'weekly' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+              <h2 className="font-bold text-gray-800 mb-1">🏆 ตั้งรางวัลสัปดาห์นี้</h2>
+              {weekly?.weekKey && <p className="text-xs text-gray-400 mb-3">สัปดาห์: {weekly.weekKey}</p>}
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                {[
+                  { label: '🥇 อันดับ 1', key: 'prize1st' },
+                  { label: '🥈 อันดับ 2', key: 'prize2nd' },
+                  { label: '🥉 อันดับ 3', key: 'prize3rd' },
+                ].map(({ label, key }) => (
+                  <div key={key}>
+                    <p className="text-xs text-gray-500 mb-1">{label}</p>
+                    <div className="flex items-center border border-gray-200 rounded-xl px-3 py-2">
+                      <span className="text-xs text-gray-400 mr-1">฿</span>
+                      <input
+                        type="number"
+                        value={prizeForm[key]}
+                        onChange={e => setPrizeForm(f => ({ ...f, [key]: e.target.value }))}
+                        className="w-full text-sm focus:outline-none"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={async () => {
+                  await adminFetch('/admin/weekly/prize', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      prize1st: parseInt(prizeForm.prize1st) || 0,
+                      prize2nd: parseInt(prizeForm.prize2nd) || 0,
+                      prize3rd: parseInt(prizeForm.prize3rd) || 0,
+                    }),
+                  });
+                  loadAll();
+                  setMsg('บันทึกรางวัลแล้ว ✓');
+                }}
+                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-xl font-semibold text-sm"
+              >
+                บันทึกรางวัล
+              </button>
+            </div>
+
+            {weekly?.leaderboard?.length > 0 && (
+              <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <h2 className="font-bold text-gray-800 mb-3">อันดับสัปดาห์นี้ (top 10)</h2>
+                <div className="space-y-2">
+                  {weekly.leaderboard.slice(0, 10).map((u, idx) => {
+                    const prizes = [weekly.config?.prize_1st, weekly.config?.prize_2nd, weekly.config?.prize_3rd];
+                    const prize = prizes[idx] || 0;
+                    const payout = weekly.payouts?.find(p => p.rank === idx + 1);
+                    return (
+                      <div key={u.id} className="flex items-center gap-3 p-2 rounded-xl bg-gray-50">
+                        <span className="text-sm font-bold text-gray-500 w-5">#{idx + 1}</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-800">{u.display_name}</p>
+                          <p className="text-xs text-gray-400">{u.accuracy_pct}% ({u.correct}/{u.total_votes})</p>
+                        </div>
+                        {prize > 0 && (
+                          payout?.paid ? (
+                            <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-lg font-semibold">✓ จ่ายแล้ว ฿{prize}</span>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                await adminFetch('/admin/weekly/payout', {
+                                  method: 'POST',
+                                  body: JSON.stringify({ userId: u.id, rank: idx + 1, prizeThb: prize }),
+                                });
+                                loadAll();
+                              }}
+                              className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-lg hover:bg-yellow-200 font-semibold"
+                            >
+                              💰 จ่าย ฿{prize}
+                            </button>
+                          )
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

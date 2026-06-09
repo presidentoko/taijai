@@ -1,11 +1,14 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../hooks/useAuth';
+import { useWeeklyStatus } from '../hooks/useWeeklyStatus';
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function VoteButtons({ prediction, onVoted }) {
   const { user } = useAuth();
+  const weeklyStatus = useWeeklyStatus();
 
   const voteKey = `voted_${prediction.id}`;
   const savedVote = localStorage.getItem(voteKey);
@@ -14,9 +17,15 @@ export default function VoteButtons({ prediction, onVoted }) {
   const [myOption, setMyOption] = useState(savedVote !== null ? parseInt(savedVote) : null);
   const [optimisticCounts, setOptimisticCounts] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const counts = optimisticCounts || prediction.vote_counts || [0, 0];
   const total = counts[0] + counts[1];
+
+  const freeLeft = weeklyStatus ? weeklyStatus.remaining : null;
+  const isFree = freeLeft === null || freeLeft > 0;
+  const creditCost = weeklyStatus?.creditCost || 50;
+  const userCredits = weeklyStatus?.credits;
 
   async function handleVote(optionIndex) {
     if (!user) {
@@ -24,7 +33,7 @@ export default function VoteButtons({ prediction, onVoted }) {
       return;
     }
     if (voted || submitting) return;
-
+    setError(null);
     navigator.vibrate?.(8);
 
     const newCounts = [counts[0], counts[1]];
@@ -41,19 +50,48 @@ export default function VoteButtons({ prediction, onVoted }) {
     } catch (e) {
       if (e.status === 409) {
         localStorage.setItem(voteKey, optionIndex.toString());
+      } else if (e.status === 402) {
+        setOptimisticCounts(null);
+        setMyOption(null);
+        setVoted(false);
+        setError('insufficient_credits');
       } else {
         setOptimisticCounts(null);
         setMyOption(null);
         setVoted(false);
+        setError('error');
       }
     } finally {
       setSubmitting(false);
     }
   }
 
+  if (error === 'insufficient_credits') {
+    return (
+      <div className="p-4 bg-yellow-50 rounded-xl text-center border border-yellow-200">
+        <p className="text-sm font-semibold text-yellow-700 mb-1">💎 เครดิตไม่พอ</p>
+        <p className="text-xs text-gray-500 mb-3">
+          ใช้ฟรีครบ 5 ครั้ง/สัปดาห์แล้ว — โหวตต่อต้องใช้ {creditCost} เครดิต/ครั้ง
+        </p>
+        <Link
+          to="/credits"
+          className="inline-block bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-semibold"
+        >
+          เติมเครดิต →
+        </Link>
+      </div>
+    );
+  }
+
   if (!voted) {
     return (
       <div className="space-y-2">
+        {!isFree && (
+          <div className="flex items-center justify-between text-xs text-yellow-600 bg-yellow-50 px-3 py-1.5 rounded-lg">
+            <span>💎 ใช้ {creditCost} เครดิต/โหวต</span>
+            <span>{userCredits ?? '...'} เครดิตคงเหลือ</span>
+          </div>
+        )}
         {prediction.options.map((option, idx) => (
           <button
             key={idx}

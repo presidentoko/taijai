@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { usePredictions } from '../hooks/usePredictions';
 import { useAuth } from '../hooks/useAuth';
+import { useWeeklyStatus } from '../hooks/useWeeklyStatus';
 import PredictionCard from '../components/PredictionCard';
 import LineLoginButton from '../components/LineLoginButton';
 import SuggestModal from '../components/SuggestModal';
@@ -28,6 +29,7 @@ export default function Home() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { predictions, loading, refetch } = usePredictions(category);
   const { user, rankInfo, logout } = useAuth();
+  const weeklyStatus = useWeeklyStatus();
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -156,6 +158,38 @@ export default function Home() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        {/* Weekly status banner */}
+        {user && weeklyStatus && (
+          <Link to="/leaderboard?period=week" className="block">
+            <div className={`rounded-2xl p-3 flex items-center justify-between ${
+              weeklyStatus.remaining > 0
+                ? 'bg-green-50 border border-green-200'
+                : 'bg-yellow-50 border border-yellow-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{weeklyStatus.remaining > 0 ? '🎯' : '💎'}</span>
+                <div>
+                  <p className={`text-xs font-semibold ${weeklyStatus.remaining > 0 ? 'text-green-700' : 'text-yellow-700'}`}>
+                    {weeklyStatus.remaining > 0
+                      ? `โหวตฟรีเหลือ ${weeklyStatus.remaining}/${weeklyStatus.free} ครั้ง`
+                      : `ฟรีหมดแล้ว — ใช้ ${weeklyStatus.creditCost} เครดิต/ครั้ง`
+                    }
+                  </p>
+                  <p className="text-xs text-gray-400">ดูอันดับสัปดาห์นี้ →</p>
+                </div>
+              </div>
+              <div className="flex gap-0.5">
+                {Array.from({ length: weeklyStatus.free }).map((_, i) => (
+                  <div key={i} className={`w-2 h-2 rounded-full ${
+                    i < (weeklyStatus.free - weeklyStatus.remaining)
+                      ? 'bg-green-400' : 'bg-gray-200'
+                  }`} />
+                ))}
+              </div>
+            </div>
+          </Link>
+        )}
+
         {loading ? (
           [1, 2, 3].map(i => <SkeletonCard key={i} />)
         ) : (

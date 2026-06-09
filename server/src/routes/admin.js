@@ -232,4 +232,96 @@ router.post('/suggestions/:id/reject', async (req, res) => {
   }
 });
 
+// --- Weekly Prizes ---
+
+function getWeekKey() {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  const y = monday.getFullYear();
+  const w = String(Math.ceil((((monday - new Date(y, 0, 1)) / 86400000) + 1) / 7)).padStart(2, '0');
+  return `${y}-W${w}`;
+}
+
+// GET /admin/weekly — current week leaderboard + prize config
+router.get('/weekly', async (req, res) => {
+  try {
+    const weekKey = getWeekKey();
+    const weekStart = (() => {
+      const now = new Date();
+      const day = now.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diff);
+      monday.setHours(0, 0, 0, 0);
+      return monday.toISOString();
+    })();
+
+    const [leaderboard, config, payouts] = await Promise.all([
+      pool.query(`
+        SELECT u.id, u.display_name, u.avatar_url,
+          COUNT(v.id)::int AS total_votes,
+          SUM(CASE WHEN v.option_index = p.correct_option THEN 1 ELSE 0 END)::int AS correct,
+          CASE WHEN COUNT(v.id) > 0
+            THEN ROUND(SUM(CASE WHEN v.option_index = p.correct_option THEN 1 ELSE 0 END)::numeric / COUNT(v.id) * 100, 1)
+            ELSE 0
+          END AS accuracy_pct
+        FROM users u
+        JOIN votes v ON v.user_id = u.id AND v.created_at >= $1
+        JOIN predictions p ON p.id = v.prediction_id AND p.resolved = TRUE
+        GROUP BY u.id, u.display_name, u.avatar_url
+        HAVING COUNT(v.id) > 0
+        ORDER BY accuracy_pct DESC, total_votes DESC
+        LIMIT 20
+      `, [weekStart]),
+      pool.query('SELECT * FROM weekly_config WHERE week_key = $1', [weekKey]),
+      pool.query('SELECT * FROM weekly_payouts WHERE week_key = $1', [weekKey]),
+    ]);
+
+    res.json({
+      weekKey,
+      leaderboard: leaderboard.rows,
+      config: config.rows[0] || { prize_1st: 0, prize_2nd: 0, prize_3rd: 0 },
+      payouts: payouts.rows,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /admin/weekly/prize — set prize amounts
+router.post('/weekly/prize', async (req, res) => {
+  const { prize1st, prize2nd, prize3rd } = req.body;
+  try {
+    const weekKey = getWeekKey();
+    await pool.query(`
+      INSERT INTO weekly_config (week_key, prize_1st, prize_2nd, prize_3rd)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (week_key) DO UPDATE
+        SET prize_1st = $2, prize_2nd = $3, prize_3rd = $4
+    `, [weekKey, prize1st || 0, prize2nd || 0, prize3rd || 0]);
+    res.json({ success: true, weekKey });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /admin/weekly/payout — mark winner as paid
+router.post('/weekly/payout', async (req, res) => {
+  const { userId, rank, prizeThb } = req.body;
+  try {
+    const weekKey = getWeekKey();
+    await pool.query(`
+      INSERT INTO weekly_payouts (week_key, user_id, rank, prize_thb, paid, paid_at)
+      VALUES ($1, $2, $3, $4, TRUE, NOW())
+      ON CONFLICT (week_key, rank) DO UPDATE SET paid = TRUE, paid_at = NOW()
+    `, [weekKey, userId, rank, prizeThb]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

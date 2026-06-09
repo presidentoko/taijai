@@ -2,8 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db');
 
+function getWeekKey() {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  const y = monday.getFullYear();
+  const w = String(Math.ceil((((monday - new Date(y, 0, 1)) / 86400000) + 1) / 7)).padStart(2, '0');
+  return `${y}-W${w}`;
+}
+
 router.get('/', async (req, res) => {
-  const { period } = req.query; // 'week' | 'month' | all
+  const { period } = req.query;
   try {
     let rows;
     if (period === 'week' || period === 'month') {
@@ -40,7 +51,19 @@ router.get('/', async (req, res) => {
       `);
       rows = result.rows;
     }
-    res.json(rows);
+
+    // Attach weekly prize config if viewing weekly
+    let prizeConfig = null;
+    if (period === 'week') {
+      const weekKey = getWeekKey();
+      const { rows: cfg } = await pool.query(
+        'SELECT * FROM weekly_config WHERE week_key = $1',
+        [weekKey]
+      );
+      prizeConfig = cfg[0] || null;
+    }
+
+    res.json({ users: rows, prizeConfig });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

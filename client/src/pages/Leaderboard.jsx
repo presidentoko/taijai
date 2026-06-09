@@ -21,24 +21,69 @@ function getBadge(u) {
 function AccuracyBar({ pct }) {
   return (
     <div className="w-16 bg-gray-100 rounded-full h-1.5 mt-1">
-      <div
-        className="h-1.5 rounded-full bg-green-400"
-        style={{ width: `${Math.min(100, pct)}%` }}
-      />
+      <div className="h-1.5 rounded-full bg-green-400" style={{ width: `${Math.min(100, pct)}%` }} />
+    </div>
+  );
+}
+
+function PrizeBanner({ config }) {
+  if (!config || (!config.prize_1st && !config.prize_2nd && !config.prize_3rd)) return null;
+  return (
+    <div className="bg-gradient-to-r from-yellow-400 to-orange-400 rounded-2xl p-4 mb-2 text-white">
+      <p className="text-sm font-bold mb-2 text-center">🏆 รางวัลสัปดาห์นี้</p>
+      <div className="flex justify-around text-center">
+        {config.prize_1st > 0 && (
+          <div>
+            <p className="text-xl">🥇</p>
+            <p className="font-bold">฿{config.prize_1st}</p>
+            <p className="text-xs opacity-80">อันดับ 1</p>
+          </div>
+        )}
+        {config.prize_2nd > 0 && (
+          <div>
+            <p className="text-xl">🥈</p>
+            <p className="font-bold">฿{config.prize_2nd}</p>
+            <p className="text-xs opacity-80">อันดับ 2</p>
+          </div>
+        )}
+        {config.prize_3rd > 0 && (
+          <div>
+            <p className="text-xl">🥉</p>
+            <p className="font-bold">฿{config.prize_3rd}</p>
+            <p className="text-xs opacity-80">อันดับ 3</p>
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-center opacity-70 mt-2">รีเซ็ตทุกวันจันทร์ 00:00</p>
     </div>
   );
 }
 
 export default function Leaderboard() {
-  const [period, setPeriod] = useState('');
+  const [period, setPeriod] = useState('week');
   const [users, setUsers] = useState([]);
+  const [prizeConfig, setPrizeConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const { user: me } = useAuth();
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get('period');
+    if (p) setPeriod(p);
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
     const path = period ? `/leaderboard?period=${period}` : '/leaderboard';
-    api.get(path).then(setUsers).catch(console.error).finally(() => setLoading(false));
+    api.get(path).then(data => {
+      if (Array.isArray(data)) {
+        setUsers(data);
+        setPrizeConfig(null);
+      } else {
+        setUsers(data.users || []);
+        setPrizeConfig(data.prizeConfig || null);
+      }
+    }).catch(console.error).finally(() => setLoading(false));
   }, [period]);
 
   const myRank = me ? users.findIndex(u => u.display_name === me.displayName) : -1;
@@ -66,10 +111,11 @@ export default function Leaderboard() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-2">
-        {/* My rank banner */}
+        {period === 'week' && <PrizeBanner config={prizeConfig} />}
+
         {me && myRank >= 3 && (
           <div className="bg-green-50 border border-green-200 rounded-2xl p-3 flex items-center justify-between">
-            <span className="text-sm text-green-700">อันดับของคุณ</span>
+            <span className="text-sm text-green-700">อันดับของคุณสัปดาห์นี้</span>
             <span className="font-bold text-green-600">#{myRank + 1}</span>
           </div>
         )}
@@ -99,6 +145,7 @@ export default function Leaderboard() {
         ) : (
           users.map((u, idx) => {
             const isMe = me && u.display_name === me.displayName;
+            const prize = idx === 0 ? prizeConfig?.prize_1st : idx === 1 ? prizeConfig?.prize_2nd : idx === 2 ? prizeConfig?.prize_3rd : 0;
             return (
               <div
                 key={u.id}
@@ -109,8 +156,8 @@ export default function Leaderboard() {
                   idx === 2 ? 'border-orange-200' : 'border-gray-100'
                 }`}
               >
-                <span className="text-2xl w-8 text-center shrink-0 font-bold">
-                  {medals[idx] ?? <span className="text-sm text-gray-400">{idx + 1}</span>}
+                <span className="text-2xl w-8 text-center shrink-0">
+                  {medals[idx] ?? <span className="text-sm font-bold text-gray-400">{idx + 1}</span>}
                 </span>
                 {u.avatar_url ? (
                   <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full shrink-0 object-cover" />
@@ -122,9 +169,9 @@ export default function Leaderboard() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className={`font-semibold truncate ${isMe ? 'text-green-700' : 'text-gray-800'}`}>
-                      {u.display_name} {isMe && '(คุณ)'}
+                      {u.display_name}{isMe ? ' (คุณ)' : ''}
                     </p>
-                    {getBadge(u) && <span className="text-sm">{getBadge(u)}</span>}
+                    {getBadge(u) && <span>{getBadge(u)}</span>}
                     {u.streak >= 3 && (
                       <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-semibold">
                         🔥{u.streak}
@@ -136,11 +183,23 @@ export default function Leaderboard() {
                 </div>
                 <div className="text-right shrink-0">
                   <span className="text-lg font-bold text-green-600">{u.accuracy_pct}%</span>
-                  <p className="text-xs text-gray-400">แม่นยำ</p>
+                  {prize > 0 && period === 'week' && (
+                    <p className="text-xs font-bold text-yellow-600">฿{prize}</p>
+                  )}
                 </div>
               </div>
             );
           })
+        )}
+
+        {period === 'week' && (
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
+            <p className="text-xs text-gray-400">โหวต 5 ครั้งแรก/สัปดาห์ ฟรี!</p>
+            <p className="text-xs text-gray-400">หลังจากนั้น 50 เครดิต/ครั้ง</p>
+            <Link to="/credits" className="text-xs text-green-600 font-medium hover:underline mt-1 inline-block">
+              เติมเครดิต →
+            </Link>
+          </div>
         )}
       </main>
     </div>

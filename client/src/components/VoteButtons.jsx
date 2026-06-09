@@ -2,16 +2,21 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../hooks/useAuth';
 
+const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 export default function VoteButtons({ prediction, onVoted }) {
   const { user } = useAuth();
-  const [voted, setVoted] = useState(false);
-  const [myOption, setMyOption] = useState(null);
+
+  const voteKey = `voted_${prediction.id}`;
+  const savedVote = localStorage.getItem(voteKey);
+
+  const [voted, setVoted] = useState(savedVote !== null);
+  const [myOption, setMyOption] = useState(savedVote !== null ? parseInt(savedVote) : null);
   const [optimisticCounts, setOptimisticCounts] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const counts = optimisticCounts || prediction.vote_counts || [0, 0];
   const total = counts[0] + counts[1];
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   async function handleVote(optionIndex) {
     if (!user) {
@@ -19,6 +24,8 @@ export default function VoteButtons({ prediction, onVoted }) {
       return;
     }
     if (voted || submitting) return;
+
+    navigator.vibrate?.(8);
 
     const newCounts = [counts[0], counts[1]];
     newCounts[optionIndex] += 1;
@@ -29,10 +36,11 @@ export default function VoteButtons({ prediction, onVoted }) {
 
     try {
       await api.post('/votes', { predictionId: prediction.id, optionIndex });
+      localStorage.setItem(voteKey, optionIndex.toString());
       onVoted?.();
     } catch (e) {
       if (e.status === 409) {
-        setVoted(true);
+        localStorage.setItem(voteKey, optionIndex.toString());
       } else {
         setOptimisticCounts(null);
         setMyOption(null);
@@ -50,7 +58,8 @@ export default function VoteButtons({ prediction, onVoted }) {
           <button
             key={idx}
             onClick={() => handleVote(idx)}
-            className="w-full bg-green-500 hover:bg-green-600 active:bg-green-700 text-white py-3 rounded-xl font-semibold text-base transition-colors"
+            disabled={submitting}
+            className="w-full bg-green-500 hover:bg-green-600 active:scale-[0.98] active:bg-green-700 text-white py-3.5 rounded-xl font-semibold text-base transition-all disabled:opacity-60 touch-manipulation"
           >
             {option}
           </button>
@@ -80,7 +89,7 @@ export default function VoteButtons({ prediction, onVoted }) {
               </span>
               <span className={`font-bold ${isMyChoice ? 'text-green-600' : 'text-gray-500'}`}>{pct}%</span>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-4">
+            <div className="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
               <div
                 className={`h-4 rounded-full transition-all duration-700 ${isMyChoice ? 'bg-green-500' : 'bg-gray-300'}`}
                 style={{ width: `${pct}%` }}
@@ -94,7 +103,7 @@ export default function VoteButtons({ prediction, onVoted }) {
         <p className="text-sm font-semibold text-green-700">✅ โหวตแล้ว!</p>
         <p className="text-xs text-gray-500 mt-0.5">
           {sameCount.toLocaleString()} คน ({myPct}%) เลือกเหมือนคุณ
-          {myPct < 40 ? ' 🔥 คุณกล้ามาก!' : myPct > 70 ? ' 👍 เป็นฝ่ายส่วนใหญ่' : ''}
+          {myPct < 30 ? ' 🔥 คุณกล้ามาก!' : myPct < 45 ? ' 💪 ฝ่ายน้อย' : myPct > 70 ? ' 👍 เป็นฝ่ายส่วนใหญ่' : ''}
         </p>
       </div>
     </div>

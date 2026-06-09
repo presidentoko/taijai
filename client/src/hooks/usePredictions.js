@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
 
 export function usePredictions(category = '') {
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  async function fetchPredictions() {
+  const fetchPredictions = useCallback(async () => {
     try {
       const path = category ? `/predictions?category=${encodeURIComponent(category)}` : '/predictions';
       const data = await api.get(path);
@@ -15,14 +15,18 @@ export function usePredictions(category = '') {
     } finally {
       setLoading(false);
     }
-  }
+  }, [category]);
 
   useEffect(() => {
     setLoading(true);
     fetchPredictions();
-    const interval = setInterval(fetchPredictions, 5000);
+
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchPredictions();
+    }, 5000);
+
     return () => clearInterval(interval);
-  }, [category]);
+  }, [fetchPredictions]);
 
   return { predictions, loading, refetch: fetchPredictions };
 }
@@ -31,7 +35,7 @@ export function usePrediction(id) {
   const [prediction, setPrediction] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  async function fetchPrediction() {
+  const fetchPrediction = useCallback(async () => {
     try {
       const data = await api.get(`/predictions/${id}`);
       setPrediction(data);
@@ -40,13 +44,17 @@ export function usePrediction(id) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
 
   useEffect(() => {
     fetchPrediction();
-    const interval = setInterval(fetchPrediction, 5000);
+
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchPrediction();
+    }, 5000);
+
     return () => clearInterval(interval);
-  }, [id]);
+  }, [fetchPrediction]);
 
   return { prediction, loading, refetch: fetchPrediction };
 }

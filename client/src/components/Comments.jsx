@@ -90,12 +90,13 @@ export default function Comments({ predictionId }) {
             onChange={e => setText(e.target.value)}
             placeholder="แสดงความคิดเห็น..."
             maxLength={300}
-            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400"
+            enterKeyHint="send"
+            className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-green-400"
           />
           <button
             type="submit"
             disabled={!text.trim() || sending}
-            className="bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white px-4 py-2 rounded-xl text-sm font-medium"
+            className="bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:opacity-40 text-white px-4 py-2.5 rounded-xl text-sm font-medium touch-manipulation"
           >
             ส่ง
           </button>

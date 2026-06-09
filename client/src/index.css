@@ -7,6 +7,16 @@
 
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
+/* iOS: prevent zoom on input focus */
+input, textarea, select {
+  font-size: 16px !important;
+}
+
+/* Better tap behavior */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }

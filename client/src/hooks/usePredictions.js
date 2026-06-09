@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 
-export function usePredictions() {
+export function usePredictions(category = '') {
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   async function fetchPredictions() {
     try {
-      const data = await api.get('/predictions');
+      const path = category ? `/predictions?category=${encodeURIComponent(category)}` : '/predictions';
+      const data = await api.get(path);
       setPredictions(data);
     } catch (e) {
       console.error(e);
@@ -17,10 +18,11 @@ export function usePredictions() {
   }
 
   useEffect(() => {
+    setLoading(true);
     fetchPredictions();
-    const interval = setInterval(fetchPredictions, 3000);
+    const interval = setInterval(fetchPredictions, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [category]);
 
   return { predictions, loading, refetch: fetchPredictions };
 }
@@ -42,7 +44,7 @@ export function usePrediction(id) {
 
   useEffect(() => {
     fetchPrediction();
-    const interval = setInterval(fetchPrediction, 3000);
+    const interval = setInterval(fetchPrediction, 5000);
     return () => clearInterval(interval);
   }, [id]);
 

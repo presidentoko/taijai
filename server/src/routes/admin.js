@@ -9,17 +9,42 @@ router.use((req, res, next) => {
   next();
 });
 
+router.get('/predictions', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT p.*,
+        ARRAY[
+          (SELECT COUNT(*)::int FROM votes WHERE prediction_id = p.id AND option_index = 0),
+          (SELECT COUNT(*)::int FROM votes WHERE prediction_id = p.id AND option_index = 1)
+        ] AS vote_counts
+      FROM predictions p ORDER BY created_at DESC
+    `);
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/predictions', async (req, res) => {
-  const { question, options, deadline } = req.body;
+  const { question, options, deadline, category = 'general' } = req.body;
   if (!question || !Array.isArray(options) || options.length !== 2 || !deadline) {
     return res.status(400).json({ error: 'question, options[2], deadline required' });
   }
   try {
     const { rows } = await pool.query(
-      `INSERT INTO predictions (question, options, deadline) VALUES ($1, $2, $3) RETURNING *`,
-      [question, options, deadline]
+      `INSERT INTO predictions (question, options, deadline, category) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [question, options, deadline, category]
     );
     res.status(201).json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/predictions/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM predictions WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -59,6 +84,21 @@ router.post('/predictions/:id/resolve', async (req, res) => {
     res.status(500).json({ error: e.message });
   } finally {
     client.release();
+  }
+});
+
+router.get('/stats', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM predictions) AS total_predictions,
+        (SELECT COUNT(*) FROM predictions WHERE resolved = true) AS resolved_predictions,
+        (SELECT COUNT(*) FROM users) AS total_users,
+        (SELECT COUNT(*) FROM votes) AS total_votes
+    `);
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

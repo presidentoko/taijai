@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { runMigrations } = require('./db');
@@ -12,6 +12,7 @@ app.use('/auth', require('./routes/auth'));
 app.use('/predictions', require('./routes/predictions'));
 app.use('/votes', require('./routes/votes'));
 app.use('/leaderboard', require('./routes/leaderboard'));
+app.use('/users', require('./routes/users'));
 app.use('/admin', require('./routes/admin'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

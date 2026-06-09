@@ -60,4 +60,28 @@ router.get('/line/callback', async (req, res) => {
   }
 });
 
+// Dev-only bypass: GET /auth/dev?name=TestUser
+router.get('/dev', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).send('Not found');
+  }
+  const displayName = req.query.name || 'Dev User';
+  const lineId = `dev_${displayName.replace(/\s/g, '_').toLowerCase()}`;
+
+  const { rows } = await pool.query(`
+    INSERT INTO users (line_id, display_name)
+    VALUES ($1, $2)
+    ON CONFLICT (line_id) DO UPDATE SET display_name = EXCLUDED.display_name
+    RETURNING id
+  `, [lineId, displayName]);
+
+  const token = jwt.sign(
+    { userId: rows[0].id, lineId, displayName },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+});
+
 module.exports = router;

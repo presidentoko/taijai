@@ -5,7 +5,13 @@ const { runMigrations } = require('./db');
 
 const app = express();
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.some(o => origin.startsWith(o.trim()))) cb(null, true);
+    else cb(new Error('Not allowed by CORS'));
+  }
+}));
 app.use(express.json());
 
 app.use('/auth', require('./routes/auth'));
@@ -18,12 +24,14 @@ app.use('/admin', require('./routes/admin'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-const PORT = process.env.PORT || 3001;
-
 if (require.main === module) {
+  const PORT = process.env.PORT || 3001;
   runMigrations().then(() =>
     app.listen(PORT, () => console.log('Server on port ' + PORT))
   );
+} else {
+  // Vercel serverless: run migrations once at cold start
+  runMigrations().catch(console.error);
 }
 
 module.exports = app;

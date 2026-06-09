@@ -13,6 +13,7 @@ app.use('/predictions', require('./routes/predictions'));
 app.use('/votes', require('./routes/votes'));
 app.use('/leaderboard', require('./routes/leaderboard'));
 app.use('/users', require('./routes/users'));
+app.use('/payments', require('./routes/payments'));
 app.use('/admin', require('./routes/admin'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

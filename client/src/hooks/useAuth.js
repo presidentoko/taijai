@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { api } from '../api';
 
 export function useAuth() {
   const [user, setUser] = useState(null);
+  const [rankInfo, setRankInfo] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -10,6 +12,7 @@ export function useAuth() {
       const payload = JSON.parse(atob(token.split('.')[1]));
       if (payload.exp * 1000 > Date.now()) {
         setUser(payload);
+        api.get('/users/rank').then(setRankInfo).catch(() => {});
       } else {
         localStorage.removeItem('token');
       }
@@ -21,7 +24,8 @@ export function useAuth() {
   function logout() {
     localStorage.removeItem('token');
     setUser(null);
+    setRankInfo(null);
   }
 
-  return { user, logout };
+  return { user, rankInfo, logout };
 }

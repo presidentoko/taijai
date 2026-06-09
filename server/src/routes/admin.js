@@ -9,6 +9,24 @@ router.use((req, res, next) => {
   next();
 });
 
+router.get('/stats', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM predictions) AS total_predictions,
+        (SELECT COUNT(*) FROM predictions WHERE resolved = true) AS resolved_predictions,
+        (SELECT COUNT(*) FROM users) AS total_users,
+        (SELECT COUNT(*) FROM votes) AS total_votes,
+        (SELECT COUNT(*) FROM transactions WHERE status = 'pending') AS pending_payments
+    `);
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// --- Predictions ---
+
 router.get('/predictions', async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -65,17 +83,31 @@ router.post('/predictions/:id/resolve', async (req, res) => {
       [correctOption, req.params.id]
     );
 
+    // Update total_predictions for all voters
     await client.query(`
       UPDATE users SET total_predictions = total_predictions + 1
       WHERE id IN (SELECT user_id FROM votes WHERE prediction_id = $1)
     `, [req.params.id]);
 
+    // Correct voters: increment correct_predictions and streak
     await client.query(`
-      UPDATE users SET correct_predictions = correct_predictions + 1
+      UPDATE users SET
+        correct_predictions = correct_predictions + 1,
+        streak = streak + 1,
+        max_streak = GREATEST(max_streak, streak + 1)
       WHERE id IN (
         SELECT user_id FROM votes WHERE prediction_id = $1 AND option_index = $2
       )
     `, [req.params.id, correctOption]);
+
+    // Wrong voters: reset streak
+    const wrongOption = correctOption === 0 ? 1 : 0;
+    await client.query(`
+      UPDATE users SET streak = 0
+      WHERE id IN (
+        SELECT user_id FROM votes WHERE prediction_id = $1 AND option_index = $2
+      )
+    `, [req.params.id, wrongOption]);
 
     await client.query('COMMIT');
     res.json({ success: true });
@@ -87,18 +119,58 @@ router.post('/predictions/:id/resolve', async (req, res) => {
   }
 });
 
-router.get('/stats', async (req, res) => {
+// --- Users / Credits ---
+
+router.get('/users', async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT
-        (SELECT COUNT(*) FROM predictions) AS total_predictions,
-        (SELECT COUNT(*) FROM predictions WHERE resolved = true) AS resolved_predictions,
-        (SELECT COUNT(*) FROM users) AS total_users,
-        (SELECT COUNT(*) FROM votes) AS total_votes
+      SELECT u.id, u.display_name, u.avatar_url, u.credits,
+        u.total_predictions, u.correct_predictions, u.streak, u.max_streak,
+        u.created_at,
+        COALESCE((
+          SELECT json_agg(t ORDER BY t.created_at DESC) FROM (
+            SELECT id, amount_thb, credits, status, created_at
+            FROM transactions WHERE user_id = u.id AND status = 'pending'
+          ) t
+        ), '[]') AS pending_payments
+      FROM users u ORDER BY u.created_at DESC
     `);
-    res.json(rows[0]);
+    res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/users/:id/credits', async (req, res) => {
+  const { credits, transactionId, note } = req.body;
+  if (!credits || credits <= 0) return res.status(400).json({ error: 'credits must be positive' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'UPDATE users SET credits = credits + $1 WHERE id = $2',
+      [credits, req.params.id]
+    );
+    if (transactionId) {
+      await client.query(
+        `UPDATE transactions SET status = 'completed', paid_at = NOW() WHERE id = $1`,
+        [transactionId]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO transactions (user_id, amount_thb, credits, status, paid_at)
+         VALUES ($1, 0, $2, 'manual', NOW())`,
+        [req.params.id, credits]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
   }
 });
 

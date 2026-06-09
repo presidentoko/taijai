@@ -11,11 +11,13 @@ router.get('/', async (req, res) => {
         avatar_url,
         total_predictions,
         correct_predictions,
+        streak,
+        max_streak,
         ROUND(correct_predictions::numeric / total_predictions * 100, 1) AS accuracy_pct
       FROM users
       WHERE total_predictions > 0
       ORDER BY correct_predictions::numeric / total_predictions DESC, total_predictions DESC
-      LIMIT 20
+      LIMIT 50
     `);
     res.json(rows);
   } catch (e) {

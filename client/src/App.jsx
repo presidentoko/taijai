@@ -5,6 +5,7 @@ import Leaderboard from './pages/Leaderboard';
 import AuthCallback from './pages/AuthCallback';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
+import BuyCredits from './pages/BuyCredits';
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
       <Route path="/predictions/:id" element={<PredictionDetail />} />
       <Route path="/leaderboard" element={<Leaderboard />} />
       <Route path="/profile" element={<Profile />} />
+      <Route path="/credits" element={<BuyCredits />} />
       <Route path="/admin" element={<Admin />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
     </Routes>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { usePredictions } from '../hooks/usePredictions';
 import { useAuth } from '../hooks/useAuth';
@@ -16,28 +16,48 @@ const CATEGORIES = [
   { key: 'general', label: '🌐 ทั่วไป' },
 ];
 
+const PAGE_SIZE = 10;
 const isDev = import.meta.env.DEV;
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export default function Home() {
   const [category, setCategory] = useState('');
   const [sort, setSort] = useState('new');
+  const [search, setSearch] = useState('');
   const [showSuggest, setShowSuggest] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const { predictions, loading, refetch } = usePredictions(category);
   const { user, rankInfo, logout } = useAuth();
 
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [category, sort, search]);
+
   const now = new Date();
-  const closingSoon = predictions.filter(p =>
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return predictions;
+    const q = search.toLowerCase();
+    return predictions.filter(p =>
+      p.question.toLowerCase().includes(q) ||
+      (p.options || []).some(o => o.toLowerCase().includes(q))
+    );
+  }, [predictions, search]);
+
+  const closingSoon = filtered.filter(p =>
     !p.resolved && new Date(p.deadline) > now &&
     (new Date(p.deadline) - now) < 86400000
   );
 
-  const main = predictions.filter(p => !closingSoon.includes(p));
+  const main = filtered.filter(p => !closingSoon.includes(p));
   const sorted = [...main].sort((a, b) =>
     sort === 'hot'
-      ? (b.vote_counts || [0,0]).reduce((x,y)=>x+y,0) - (a.vote_counts || [0,0]).reduce((x,y)=>x+y,0)
+      ? (b.vote_counts || [0, 0]).reduce((x, y) => x + y, 0) - (a.vote_counts || [0, 0]).reduce((x, y) => x + y, 0)
       : 0
   );
+
+  const visible = sorted.slice(0, visibleCount);
+  const hasMore = sorted.length > visibleCount;
 
   const totalVotes = predictions.reduce(
     (s, p) => s + (p.vote_counts || [0, 0]).reduce((a, b) => a + b, 0), 0
@@ -89,6 +109,26 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Search */}
+          <div className="mt-2 relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="ค้นหาคำทาย..."
+              className="w-full pl-8 pr-4 py-2 bg-gray-100 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:bg-white transition-colors"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center gap-1.5 mt-2 overflow-x-auto no-scrollbar pb-1">
             {CATEGORIES.map(c => (
               <button
@@ -117,15 +157,22 @@ export default function Home() {
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
         {loading ? (
-          [1,2,3].map(i => <SkeletonCard key={i} />)
+          [1, 2, 3].map(i => <SkeletonCard key={i} />)
         ) : (
           <>
+            {/* Search results info */}
+            {search && (
+              <p className="text-xs text-gray-400 px-1">
+                พบ {filtered.length} รายการ {filtered.length === 0 ? '— ลองค้นคำอื่น' : ''}
+              </p>
+            )}
+
             {/* Closing soon */}
             {closingSoon.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-bold text-red-500">⚡ ปิดรับโหวตเร็วๆ นี้</span>
-                  <span className="text-xs text-gray-400">ด่วน!</span>
+                  <span className="text-sm font-bold text-red-500 animate-pulse">⚡ ปิดรับโหวตเร็วๆ นี้</span>
+                  <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full font-semibold">ด่วน!</span>
                 </div>
                 <div className="space-y-3">
                   {closingSoon.map(p => (
@@ -136,19 +183,30 @@ export default function Home() {
               </div>
             )}
 
-            {sorted.length === 0 && closingSoon.length === 0 ? (
+            {visible.length === 0 && closingSoon.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
-                <p className="text-4xl mb-3">🤔</p>
-                <p>ยังไม่มีคำทาย</p>
+                <p className="text-4xl mb-3">{search ? '🔍' : '🤔'}</p>
+                <p>{search ? 'ไม่พบคำทายที่ค้นหา' : 'ยังไม่มีคำทาย'}</p>
               </div>
             ) : (
-              sorted.map(p => <PredictionCard key={p.id} prediction={p} onVoted={refetch} />)
+              <>
+                {visible.map(p => <PredictionCard key={p.id} prediction={p} onVoted={refetch} />)}
+
+                {hasMore && (
+                  <button
+                    onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
+                    className="w-full py-3 rounded-2xl border border-gray-200 text-gray-500 hover:border-green-400 hover:text-green-600 text-sm font-medium transition-colors bg-white"
+                  >
+                    ดูเพิ่มอีก {Math.min(PAGE_SIZE, sorted.length - visibleCount)} รายการ ↓
+                  </button>
+                )}
+              </>
             )}
           </>
         )}
 
         {/* Suggest button */}
-        {user && (
+        {user && !search && (
           <button
             onClick={() => setShowSuggest(true)}
             className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-green-400 hover:text-green-500 text-sm transition-colors"

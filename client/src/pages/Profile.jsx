@@ -3,12 +3,53 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../hooks/useAuth';
 
-function Badge({ streak, accuracy, total }) {
-  if (streak >= 5) return <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-semibold">🔥 ขั้นเทพ</span>;
-  if (accuracy >= 70 && total >= 5) return <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-semibold">🎯 นักทำนาย</span>;
-  if (total >= 10) return <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-semibold">⭐ ผู้เชี่ยวชาญ</span>;
-  if (total > 0) return <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-semibold">🌱 มือใหม่</span>;
-  return null;
+const BADGES = [
+  {
+    id: 'legend',
+    icon: '👑',
+    label: 'ตำนาน',
+    color: 'bg-yellow-100 text-yellow-700',
+    check: u => u.streak >= 10,
+  },
+  {
+    id: 'fire',
+    icon: '🔥',
+    label: 'ขั้นเทพ',
+    color: 'bg-orange-100 text-orange-600',
+    check: u => u.streak >= 5 && u.streak < 10,
+  },
+  {
+    id: 'sharpshooter',
+    icon: '🎯',
+    label: 'นักทำนาย',
+    color: 'bg-purple-100 text-purple-600',
+    check: u => parseFloat(u.accuracy_pct) >= 70 && u.total_predictions >= 5,
+  },
+  {
+    id: 'expert',
+    icon: '⭐',
+    label: 'ผู้เชี่ยวชาญ',
+    color: 'bg-blue-100 text-blue-600',
+    check: u => u.total_predictions >= 20,
+  },
+  {
+    id: 'active',
+    icon: '💪',
+    label: 'นักโหวต',
+    color: 'bg-indigo-100 text-indigo-600',
+    check: u => u.total_predictions >= 10 && u.total_predictions < 20,
+  },
+  {
+    id: 'newbie',
+    icon: '🌱',
+    label: 'มือใหม่',
+    color: 'bg-gray-100 text-gray-500',
+    check: u => u.total_predictions > 0 && u.total_predictions < 10,
+  },
+];
+
+function getEarnedBadges(profile) {
+  return BADGES.filter(b => b.check(profile));
 }
 
 export default function Profile() {
@@ -26,6 +67,9 @@ export default function Profile() {
   }, [user]);
 
   if (!user) return null;
+
+  const badges = profile ? getEarnedBadges(profile) : [];
+  const primaryBadge = badges[0];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -50,37 +94,78 @@ export default function Profile() {
             <div className="flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-lg font-bold text-gray-800">{user.displayName}</p>
-                {!loading && profile && (
-                  <Badge streak={profile.streak} accuracy={profile.accuracy_pct} total={profile.total_predictions} />
+                {primaryBadge && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${primaryBadge.color}`}>
+                    {primaryBadge.icon} {primaryBadge.label}
+                  </span>
                 )}
               </div>
               {!loading && profile?.rank && profile.total_predictions > 0 && (
-                <p className="text-sm text-gray-500">อันดับที่ <span className="font-bold text-yellow-600">#{profile.rank}</span></p>
+                <p className="text-sm text-gray-500">
+                  อันดับที่ <span className="font-bold text-yellow-600">#{profile.rank}</span>
+                </p>
               )}
             </div>
           </div>
 
           {!loading && profile && (
-            <div className="grid grid-cols-4 gap-3">
-              <div className="bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-xl font-bold text-gray-800">{profile.total_predictions}</p>
-                <p className="text-xs text-gray-400">ทาย</p>
+            <>
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                <div className="bg-gray-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-gray-800">{profile.total_predictions}</p>
+                  <p className="text-xs text-gray-400">ทาย</p>
+                </div>
+                <div className="bg-green-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-green-600">{profile.accuracy_pct}%</p>
+                  <p className="text-xs text-gray-400">แม่นยำ</p>
+                </div>
+                <div className="bg-orange-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-orange-500">🔥{profile.streak}</p>
+                  <p className="text-xs text-gray-400">สตรีค</p>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-blue-600">{profile.credits || 0}</p>
+                  <p className="text-xs text-gray-400">เครดิต</p>
+                </div>
               </div>
-              <div className="bg-green-50 rounded-xl p-3 text-center">
-                <p className="text-xl font-bold text-green-600">{profile.accuracy_pct}%</p>
-                <p className="text-xs text-gray-400">แม่นยำ</p>
-              </div>
-              <div className="bg-orange-50 rounded-xl p-3 text-center">
-                <p className="text-xl font-bold text-orange-500">🔥{profile.streak}</p>
-                <p className="text-xs text-gray-400">สตรีค</p>
-              </div>
-              <div className="bg-blue-50 rounded-xl p-3 text-center">
-                <p className="text-xl font-bold text-blue-600">{profile.credits || 0}</p>
-                <p className="text-xs text-gray-400">เครดิต</p>
-              </div>
-            </div>
+
+              {profile.max_streak > 1 && (
+                <div className="bg-orange-50 rounded-xl p-3 flex items-center justify-between">
+                  <span className="text-sm text-gray-600">สถิติสูงสุด</span>
+                  <span className="font-bold text-orange-500">🔥 {profile.max_streak} วัน</span>
+                </div>
+              )}
+            </>
           )}
         </div>
+
+        {/* Badges */}
+        {!loading && badges.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-500 mb-3">ตราสัญลักษณ์</h3>
+            <div className="flex flex-wrap gap-2">
+              {badges.map(b => (
+                <span key={b.id} className={`text-xs px-3 py-1.5 rounded-full font-semibold ${b.color}`}>
+                  {b.icon} {b.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Locked badges teaser */}
+        {!loading && profile && badges.length < BADGES.length && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-500 mb-3">ปลดล็อคต่อไป</h3>
+            <div className="flex flex-wrap gap-2">
+              {BADGES.filter(b => !b.check(profile)).map(b => (
+                <span key={b.id} className="text-xs px-3 py-1.5 rounded-full font-semibold bg-gray-100 text-gray-400 opacity-50">
+                  🔒 {b.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Credits */}
         <Link

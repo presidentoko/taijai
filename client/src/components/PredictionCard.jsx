@@ -11,22 +11,48 @@ const CATEGORY_LABELS = {
   general: '🌐 ทั่วไป',
 };
 
-export default function PredictionCard({ prediction, onVoted }) {
-  const deadline = new Date(prediction.deadline);
-  const isExpired = deadline < new Date();
+function getViewers(prediction) {
   const total = (prediction.vote_counts || [0, 0]).reduce((a, b) => a + b, 0);
+  const idNum = prediction.id
+    ? parseInt(prediction.id.replace(/-/g, '').slice(0, 8), 16) % 1000
+    : 0;
+  return Math.max(3, (idNum % 20) + Math.floor(total * 0.15) + 4);
+}
+
+export default function PredictionCard({ prediction, onVoted, urgent }) {
+  const deadline = new Date(prediction.deadline);
+  const created = new Date(prediction.created_at);
+  const now = new Date();
+  const isExpired = deadline < now;
+  const isNew = !prediction.resolved && (now - created) < 86400000;
+  const total = (prediction.vote_counts || [0, 0]).reduce((a, b) => a + b, 0);
+  const viewers = getViewers(prediction);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
+    <div className={`bg-white rounded-2xl shadow-sm p-5 border transition-all ${
+      urgent ? 'border-red-200 ring-1 ring-red-200' : 'border-gray-100'
+    }`}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-gray-400">
-          {prediction.category && prediction.category !== 'general'
-            ? CATEGORY_LABELS[prediction.category] || prediction.category
-            : ''}
-        </span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {prediction.category && prediction.category !== 'general' && (
+            <span className="text-xs text-gray-400">
+              {CATEGORY_LABELS[prediction.category] || prediction.category}
+            </span>
+          )}
+          {isNew && !prediction.resolved && (
+            <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full font-semibold">
+              ✨ ใหม่
+            </span>
+          )}
+          {urgent && (
+            <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full font-semibold animate-pulse">
+              🔥 Hot
+            </span>
+          )}
+        </div>
         {!isExpired && !prediction.resolved
           ? <Countdown deadline={prediction.deadline} />
-          : <span className="text-xs text-gray-400">{isExpired ? '⏰ หมดเวลา' : ''}</span>
+          : <span className="text-xs text-gray-400">{isExpired && !prediction.resolved ? '⏰ หมดเวลา' : ''}</span>
         }
       </div>
 
@@ -51,10 +77,18 @@ export default function PredictionCard({ prediction, onVoted }) {
       )}
 
       <div className="flex items-center justify-between mt-3">
-        {total > 0
-          ? <span className="text-xs text-gray-400">{total.toLocaleString()} คนร่วมทาย</span>
-          : <span />
-        }
+        <div className="flex items-center gap-3 text-xs text-gray-400">
+          {total > 0 && <span>{total.toLocaleString()} คนร่วมทาย</span>}
+          {!prediction.resolved && !isExpired && (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+              {viewers} คนดูอยู่
+            </span>
+          )}
+          {prediction.comment_count > 0 && (
+            <span>💬 {prediction.comment_count}</span>
+          )}
+        </div>
         <ShareButton prediction={prediction} />
       </div>
     </div>

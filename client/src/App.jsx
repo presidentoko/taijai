@@ -6,6 +6,7 @@ import AuthCallback from './pages/AuthCallback';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
 import BuyCredits from './pages/BuyCredits';
+import NotFound from './pages/NotFound';
 import BottomNav from './components/BottomNav';
 
 const HIDE_NAV = ['/admin', '/auth/callback'];
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/credits" element={<BuyCredits />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
       {showNav && <BottomNav />}

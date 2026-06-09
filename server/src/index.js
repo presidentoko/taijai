@@ -16,10 +16,12 @@ app.use(express.json());
 
 app.use('/auth', require('./routes/auth'));
 app.use('/predictions', require('./routes/predictions'));
+app.use('/predictions/:id/comments', require('./routes/comments'));
 app.use('/votes', require('./routes/votes'));
 app.use('/leaderboard', require('./routes/leaderboard'));
 app.use('/users', require('./routes/users'));
 app.use('/payments', require('./routes/payments'));
+app.use('/suggestions', require('./routes/suggestions'));
 app.use('/admin', require('./routes/admin'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
@@ -30,7 +32,6 @@ if (require.main === module) {
     app.listen(PORT, () => console.log('Server on port ' + PORT))
   );
 } else {
-  // Vercel serverless: run migrations once at cold start
   runMigrations().catch(console.error);
 }
 

@@ -14,10 +14,12 @@ function adminFetch(path, options = {}) {
 export default function Admin() {
   const [secret, setSecret] = useState(localStorage.getItem('admin_secret') || '');
   const [authed, setAuthed] = useState(false);
-  const [tab, setTab] = useState('predictions'); // 'predictions' | 'users'
+  const [tab, setTab] = useState('predictions');
   const [stats, setStats] = useState(null);
   const [predictions, setPredictions] = useState([]);
   const [users, setUsers] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [approveForm, setApproveForm] = useState(null);
   const [form, setForm] = useState({ question: '', option0: '', option1: '', deadline: '', category: 'general' });
   const [msg, setMsg] = useState('');
   const [creditModal, setCreditModal] = useState(null); // { userId, displayName, txId, credits }
@@ -30,14 +32,16 @@ export default function Admin() {
   useEffect(() => { if (authed) loadAll(); }, [authed]);
 
   async function loadAll() {
-    const [s, p, u] = await Promise.all([
+    const [s, p, u, sg] = await Promise.all([
       adminFetch('/admin/stats'),
       adminFetch('/admin/predictions'),
       adminFetch('/admin/users'),
+      adminFetch('/admin/suggestions'),
     ]);
     setStats(s);
     setPredictions(Array.isArray(p) ? p : []);
     setUsers(Array.isArray(u) ? u : []);
+    setSuggestions(Array.isArray(sg) ? sg : []);
   }
 
   async function addPrediction(e) {
@@ -112,7 +116,7 @@ export default function Admin() {
           <a href="/" className="text-sm text-gray-500 hover:text-gray-800">← หน้าหลัก</a>
         </div>
         <div className="max-w-2xl mx-auto px-4 pb-2 flex gap-3">
-          {['predictions', 'users'].map(t => (
+          {['predictions', 'users', 'suggestions'].map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -120,7 +124,7 @@ export default function Admin() {
                 tab === t ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              {t === 'predictions' ? '📋 คำทาย' : '👥 ผู้ใช้'}
+              {t === 'predictions' ? '📋 คำทาย' : t === 'users' ? '👥 ผู้ใช้' : `💡 ข้อเสนอ${suggestions.length ? ` (${suggestions.length})` : ''}`}
             </button>
           ))}
         </div>
@@ -240,6 +244,62 @@ export default function Admin() {
                         </button>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {tab === 'suggestions' && (
+          <div className="space-y-3">
+            {suggestions.length === 0 && <p className="text-center text-gray-400 py-8">ยังไม่มีข้อเสนอ</p>}
+            {suggestions.map(s => (
+              <div key={s.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                <p className="text-xs text-gray-400 mb-1">โดย {s.display_name} · {s.category}</p>
+                <p className="font-medium text-gray-800 text-sm mb-2">{s.question}</p>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="text-xs bg-gray-50 text-gray-600 px-3 py-1.5 rounded-xl text-center">{s.option_a}</div>
+                  <div className="text-xs bg-gray-50 text-gray-600 px-3 py-1.5 rounded-xl text-center">{s.option_b}</div>
+                </div>
+                {approveForm?.id === s.id ? (
+                  <div className="space-y-2">
+                    <input
+                      type="datetime-local"
+                      value={approveForm.deadline || ''}
+                      onChange={e => setApproveForm(f => ({ ...f, deadline: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          await adminFetch(`/admin/suggestions/${s.id}/approve`, {
+                            method: 'POST',
+                            body: JSON.stringify({ deadline: new Date(approveForm.deadline).toISOString(), category: s.category }),
+                          });
+                          setApproveForm(null);
+                          loadAll();
+                        }}
+                        className="flex-1 bg-green-500 text-white py-1.5 rounded-xl text-xs font-semibold"
+                      >
+                        ✓ อนุมัติ
+                      </button>
+                      <button onClick={() => setApproveForm(null)} className="flex-1 border border-gray-200 text-gray-500 py-1.5 rounded-xl text-xs">ยกเลิก</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setApproveForm({ id: s.id, deadline: '' })}
+                      className="flex-1 text-xs py-1.5 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 font-medium"
+                    >
+                      ✓ อนุมัติ
+                    </button>
+                    <button
+                      onClick={async () => { await adminFetch(`/admin/suggestions/${s.id}/reject`, { method: 'POST' }); loadAll(); }}
+                      className="text-xs py-1.5 px-3 rounded-xl bg-red-50 text-red-500 hover:bg-red-100"
+                    >
+                      ✕
+                    </button>
                   </div>
                 )}
               </div>

@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 
 const medals = ['🥇', '🥈', '🥉'];
+const PERIODS = [
+  { key: '', label: 'ตลอดกาล' },
+  { key: 'month', label: 'เดือนนี้' },
+  { key: 'week', label: 'สัปดาห์นี้' },
+];
 
 function getBadge(u) {
   if (u.streak >= 5) return '🔥';
@@ -12,12 +17,15 @@ function getBadge(u) {
 }
 
 export default function Leaderboard() {
+  const [period, setPeriod] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/leaderboard').then(setUsers).catch(console.error).finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    const path = period ? `/leaderboard?period=${period}` : '/leaderboard';
+    api.get(path).then(setUsers).catch(console.error).finally(() => setLoading(false));
+  }, [period]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -26,8 +34,22 @@ export default function Leaderboard() {
           <Link to="/" className="text-gray-400 hover:text-gray-700">←</Link>
           <h1 className="text-xl font-bold text-gray-800">🏆 อันดับนักทำนาย</h1>
         </div>
+        <div className="max-w-lg mx-auto px-4 pb-2 flex gap-2">
+          {PERIODS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+                period === p.key ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </header>
-      <main className="max-w-lg mx-auto px-4 py-6 space-y-2">
+
+      <main className="max-w-lg mx-auto px-4 py-4 space-y-2">
         {loading ? (
           <div className="text-center py-16 text-gray-400">กำลังโหลด...</div>
         ) : users.length === 0 ? (
@@ -47,7 +69,7 @@ export default function Leaderboard() {
               }`}
             >
               <span className="text-2xl w-8 text-center shrink-0">
-                {medals[idx] !== undefined ? medals[idx] : idx + 1}
+                {medals[idx] ?? idx + 1}
               </span>
               {u.avatar_url ? (
                 <img src={u.avatar_url} alt="" className="w-10 h-10 rounded-full shrink-0" />
@@ -57,7 +79,7 @@ export default function Leaderboard() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <p className="font-semibold text-gray-800 truncate">{u.display_name}</p>
                   {getBadge(u) && <span>{getBadge(u)}</span>}
                   {u.streak >= 3 && (
@@ -66,9 +88,7 @@ export default function Leaderboard() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-400">
-                  {u.correct_predictions}/{u.total_predictions} ครั้ง
-                </p>
+                <p className="text-xs text-gray-400">{u.correct_predictions}/{u.total_predictions} ครั้ง</p>
               </div>
               <span className="text-lg font-bold text-green-600 shrink-0">{u.accuracy_pct}%</span>
             </div>

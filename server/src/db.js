@@ -10,11 +10,21 @@ const pool = new Pool({
 
 async function runMigrations() {
   const migrationsDir = path.join(__dirname, '../migrations');
-  const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+  let files;
+  try {
+    files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+  } catch (e) {
+    console.error('Migrations dir not found:', migrationsDir, e.message);
+    return;
+  }
   for (const file of files) {
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-    await pool.query(sql);
-    console.log(`Migration applied: ${file}`);
+    try {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      await pool.query(sql);
+      console.log(`Migration applied: ${file}`);
+    } catch (e) {
+      console.error(`Migration failed ${file}:`, e.message);
+    }
   }
 }
 
